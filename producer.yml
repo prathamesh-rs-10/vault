@@ -6,12 +6,37 @@ resources:
       branch: main
 
 jobs:
-  - name: produce-consume-data
+  - name: start-consumer
     plan:
       - get: repo
         trigger: true
 
-      - task: produce-consume-data
+      - task: start-consumer
+        config:
+          platform: linux
+          image_resource:
+            type: docker-image
+            source:
+              repository: python
+              tag: "3.9"
+          inputs:
+            - name: repo
+          run:
+            path: sh
+            args:
+              - -c
+              - |
+                pip install kafka-python
+                cd repo
+                python consumer.py &
+                sleep 10
+
+  - name: produce-data
+    plan:
+      - get: repo
+        trigger: true
+
+      - task: produce-data
         config:
           platform: linux
           image_resource:
@@ -29,7 +54,4 @@ jobs:
                 pip install psycopg2
                 pip install kafka-python
                 cd repo
-                python produce_consume_data.py
-                git add data.jsonl
-                git commit -m "Add consumed data"
-                git push origin main
+                python producer.py
