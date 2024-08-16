@@ -6,12 +6,12 @@ resources:
       branch: main
 
 jobs:
-  - name: produce-data
+  - name: produce-consume-data
     plan:
       - get: repo
         trigger: true
 
-      - task: produce-data
+      - task: produce-consume-data
         config:
           platform: linux
           image_resource:
@@ -29,7 +29,7 @@ jobs:
                 pip install psycopg2
                 pip install kafka-python
                 cd repo
-                python producer.py
-                # Store output in a file
-                mkdir -p output
-                touch output/success.txt
+                python produce_consume_data.py
+                git add data.jsonl
+                git commit -m "Add consumed data"
+                git push origin main
