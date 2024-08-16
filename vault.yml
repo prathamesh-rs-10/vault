@@ -1,0 +1,42 @@
+resources:
+  - name: repo
+    type: git
+    source:
+      uri: https://github.com/prathamesh-rs-10/vault.git
+      branch: main
+
+jobs:
+  - name: run-python-script
+    plan:
+      - get: repo
+        trigger: true
+
+      - task: run-python-script
+        config:
+          platform: linux
+          image_resource:
+            type: docker-image
+            source:
+              repository: python
+              tag: "3.9"
+          inputs:
+            - name: repo
+          run:
+            path: sh
+            args:
+              - -c
+              - |
+                # Install required libraries
+                pip install bs4
+                pip install pandas
+                pip install requests
+                pip install psycopg2
+                pip install SQLAlchemy
+                pip install kafka-python
+                ls -l
+                cd repo
+                ls -l
+                python scrap.py
+                # Store output in a file
+                mkdir -p output
+                touch output/success.txt

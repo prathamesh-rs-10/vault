@@ -1,0 +1,28 @@
+jobs:
+  - name: read-secret
+    plan:
+      - task: show-secret
+        config:
+          platform: linux
+          image_resource:
+            type: docker-image
+            source:
+              repository: hashicorp/vault
+          outputs:
+            - name: credentials 
+          run:
+            path: sh
+            args:
+              - -c
+              - |
+                # Shell script to fetch credentials from Vault
+                export VAULT_ADDR='http://192.168.3.66:8200'
+                export VAULT_TOKEN='hvs.un81LokrylrVGR32y9baSFob'
+ 
+                # Fetch credentials from Vault
+                USERNAME=$(vault kv get -field=username secret/your-app)
+                PASSWORD=$(vault kv get -field=password secret/your-app)
+ 
+                # Store credentials in a file
+                echo $USERNAME > credentials/username.txt
+                echo $PASSWORD > credentials/password.txt
