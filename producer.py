@@ -1,7 +1,6 @@
 import psycopg2
-from kafka import KafkaProducer, KafkaConsumer
+from kafka import KafkaProducer
 import time
-import json
 
 # Postgres connection
 db_host = "192.168.3.66"
@@ -36,15 +35,3 @@ for row in rows:
 cur.close()
 conn.close()
 producer.close()
-
-# Kafka consumer
-consumer = KafkaConsumer('profit_loss_data', bootstrap_servers='localhost:9092')
-
-# Consume data from Kafka and store in GitHub repo
-for message in consumer:
-    row = message.value
-    with open('data.jsonl', 'a') as f:
-        f.write(json.dumps(row) + '\n')
-
-# Close consumer
-consumer.close()
