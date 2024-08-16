@@ -28,7 +28,7 @@ jobs:
               - |
                 pip install kafka-python
                 cd repo
-                python consumer.py &
+                python consumption.py &
                 sleep 10
 
   - name: produce-data
