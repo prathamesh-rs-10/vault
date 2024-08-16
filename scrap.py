@@ -40,11 +40,3 @@ if data is not None:
         engine = create_engine(f'postgresql+psycopg2://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}')
         df_table.to_sql('profit_loss_data', engine, if_exists='replace', index=False)
         print("Data loaded to Postgres")
-
-        # Produce data to Kafka
-        producer = KafkaProducer(bootstrap_servers='localhost:9092')
-        for index, row in df_table.iterrows():
-            data = row.to_dict()
-            producer.send('profit_loss_data', value=data)
-        producer.close()
-        print("Data produced to Kafka")
