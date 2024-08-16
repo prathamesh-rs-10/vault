@@ -1,5 +1,7 @@
 import psycopg2
-from kafka import KafkaProducer
+from kafka import KafkaProducer, KafkaConsumer
+import time
+import json
 
 # Postgres connection
 db_host = "192.168.3.66"
@@ -10,6 +12,9 @@ db_port = "5432"
 
 # Kafka producer
 producer = KafkaProducer(bootstrap_servers='localhost:9092')
+
+# Wait for 30 seconds to allow consumer to start
+time.sleep(30)
 
 # Query data from Postgres
 conn = psycopg2.connect(
@@ -27,7 +32,19 @@ rows = cur.fetchall()
 for row in rows:
     producer.send('profit_loss_data', value=row)
 
-# Close connections
+# Close producer connections
 cur.close()
 conn.close()
 producer.close()
+
+# Kafka consumer
+consumer = KafkaConsumer('profit_loss_data', bootstrap_servers='localhost:9092')
+
+# Consume data from Kafka and store in GitHub repo
+for message in consumer:
+    row = message.value
+    with open('data.jsonl', 'a') as f:
+        f.write(json.dumps(row) + '\n')
+
+# Close consumer
+consumer.close()
