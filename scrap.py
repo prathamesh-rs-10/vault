@@ -3,6 +3,7 @@ from bs4 import BeautifulSoup as bs
 import pandas as pd
 import psycopg2
 from sqlalchemy import create_engine
+from kafka import KafkaProducer
 
 # Web scraping
 url = 'https://screener.in/company/RELIANCE/consolidated/'
@@ -44,6 +45,24 @@ if data is not None:
 connection = engine.raw_connection()
 cursor = connection.cursor()
 
+# Rename columns
+cursor.execute("""
+    ALTER TABLE profit_loss_data
+    RENAME COLUMN "Sales +" TO sales,
+    RENAME COLUMN "Expenses +" TO expenses,
+    RENAME COLUMN "Operating Profit" TO operating_profit,
+    RENAME COLUMN "OPM %" TO operating_profit_margin,
+    RENAME COLUMN "Other Income +" TO other_income,
+    RENAME COLUMN "Interest" TO interest,
+    RENAME COLUMN "Depreciation" TO depreciation,
+    RENAME COLUMN "Profit before tax" TO profit_before_tax,
+    RENAME COLUMN "Tax %" TO tax_rate,
+    RENAME COLUMN "Net Profit +" TO net_profit,
+    RENAME COLUMN "EPS in Rs" TO earnings_per_share,
+    RENAME COLUMN "Dividend Payout %" TO dividend_payout_ratio;
+""")
+connection.commit()
+
 # Transform data in Postgres
 cursor.execute("""
     ALTER TABLE profit_loss_data
@@ -55,12 +74,12 @@ cursor.execute("""
     ALTER COLUMN depreciation TYPE numeric,
     ALTER COLUMN profit_before_tax TYPE numeric,
     ALTER COLUMN net_profit TYPE numeric,
-    ALTER COLUMN eps_in_rs TYPE numeric;
+    ALTER COLUMN earnings_per_share TYPE numeric;
     
     ALTER TABLE profit_loss_data
-    ALTER COLUMN opm TYPE decimal(4, 2),
-    ALTER COLUMN tax TYPE decimal(4, 2),
-    ALTER COLUMN dividend_payout TYPE decimal(4, 2);
+    ALTER COLUMN operating_profit_margin TYPE decimal(4, 2),
+    ALTER COLUMN tax_rate TYPE decimal(4, 2),
+    ALTER COLUMN dividend_payout_ratio TYPE decimal(4, 2);
 """)
 
 # Add ID column
