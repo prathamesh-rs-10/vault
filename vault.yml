@@ -32,10 +32,7 @@ jobs:
                 pip install requests
                 pip install psycopg2
                 pip install SQLAlchemy
-                pip install kafka-python
-                ls -l
                 cd repo
-                ls -l
                 python scrap.py
                 # Store output in a file
                 mkdir -p output
