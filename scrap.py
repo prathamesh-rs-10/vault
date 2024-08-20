@@ -3,6 +3,7 @@ from bs4 import BeautifulSoup as bs
 import pandas as pd
 import psycopg2
 from sqlalchemy import create_engine
+from datetime import datetime, timedelta
 
 # Web scraping
 url = 'https://screener.in/company/RELIANCE/consolidated/'
@@ -20,19 +21,14 @@ if data is not None:
                 row_data.append(cell.text.strip())
             table_data.append(row_data)
 
-        df_table = pd.DataFrame(table_data)
-        df_table.iloc[0, 0] = 'Section'
-        df_table.columns = df_table.iloc[0]
-        df_table = df_table.iloc[1:, :-2]
+        # Generate dates
+        start_date = datetime.strptime('Mar 2013', '%b %Y')
+        dates = [(start_date + timedelta(years=i)).strftime('%b %Y') for i in range(len(table_data) - 1)]
 
-        for i in df_table.iloc[:, 1:].columns:
-            df_table[i] = df_table[i].str.replace(',', '').str.replace('%', '/100').apply(eval)
-
-        # Transpose the dataframe
-        df_table = df_table.set_index('Section').transpose()
-
-        # Add an incremental ID column
+        df_table = pd.DataFrame(table_data[1:], columns=['Sales +', 'Expenses +', 'Operating Profit', 'OPM %', 'Other Income +', 'Interest', 'Depreciation', 'Profit before tax', 'Tax %', 'Net Profit +', 'EPS in Rs', 'Dividend Payout %', 'Date'])
+        df_table['Date'] = dates
         df_table['id'] = range(1, len(df_table) + 1)
+        df_table = df_table[['id', 'Date', 'Sales +', 'Expenses +', 'Operating Profit', 'OPM %', 'Other Income +', 'Interest', 'Depreciation', 'Profit before tax', 'Tax %', 'Net Profit +', 'EPS in Rs', 'Dividend Payout %']]
 
         # Load data to Postgres
         db_host = "192.168.3.66"
