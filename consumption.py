@@ -1,12 +1,12 @@
-from kafka import KafkaConsumer
 import json
+from kafka import KafkaConsumer
 
 # Kafka consumer
 consumer = KafkaConsumer('profit_loss_data', bootstrap_servers='localhost:9092')
 
-# Consume data from Kafka and store in GitHub repo
-while True:
+# Consume data from Kafka and write to file
+with open('consumer_output.json', 'w') as f:
     for message in consumer:
-        row = message.value
-        with open('data.jsonl', 'a') as f:
-            f.write(json.dumps(row) + '\n')
+        data = json.loads(message.value.decode('utf-8'))
+        json.dump(data, f)
+        f.write('\n')
