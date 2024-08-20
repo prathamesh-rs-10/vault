@@ -6,12 +6,12 @@ resources:
       branch: main
 
 jobs:
-  - name: start-consumer
+  - name: produce-and-consumer-data
     plan:
       - get: repo
         trigger: true
 
-      - task: start-consumer
+      - task: produce-and-consume-data
         config:
           platform: linux
           image_resource:
@@ -26,32 +26,9 @@ jobs:
             args:
               - -c
               - |
-                pip install kafka-python
-                cd repo
-                python consumption.py &
-                sleep 10
-
-  - name: produce-data
-    plan:
-      - get: repo
-        trigger: true
-
-      - task: produce-data
-        config:
-          platform: linux
-          image_resource:
-            type: docker-image
-            source:
-              repository: python
-              tag: "3.9"
-          inputs:
-            - name: repo
-          run:
-            path: sh
-            args:
-              - -c
-              - |
-                pip install psycopg2
+                pip install psycopg2-binary
                 pip install kafka-python
                 cd repo
                 python producer.py
+                # Write data to local project directory
+                consumer_output.json 
