@@ -2,9 +2,14 @@ import requests
 from bs4 import BeautifulSoup as bs
 import pandas as pd
 from sqlalchemy import create_engine
+import logging
+
+# Setup logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Web scraping
 url = 'https://screener.in/company/RELIANCE/consolidated/'
+logging.info(f"Fetching data from URL: {url}")
 webpage = requests.get(url)
 soup = bs(webpage.text, 'html.parser')
 data = soup.find('section', id="profit-loss")
@@ -19,14 +24,30 @@ if data is not None:
                 row_data.append(cell.text.strip())
             table_data.append(row_data)
 
+        # Convert the scraped table data to a DataFrame
         df_table = pd.DataFrame(table_data)
         df_table.iloc[0, 0] = 'Section'
         df_table.columns = df_table.iloc[0]
         df_table = df_table.iloc[1:, :-2]
 
-        for i in df_table.iloc[:, 1:].columns:
+        # Transpose the DataFrame to have columns as periods and rows as metrics
+        df_table = df_table.set_index('Section').transpose()
+
+        # Reset index after transpose and add an 'id' column
+        df_table.reset_index(inplace=True)
+        df_table.rename(columns={'index': 'Period'}, inplace=True)
+        df_table['id'] = range(1, len(df_table) + 1)
+
+        # Rearrange columns to put 'id' at the beginning
+        columns = ['id'] + [col for col in df_table.columns if col != 'id']
+        df_table = df_table[columns]
+
+        # Clean up numeric data by removing commas and converting percentages
+        for i in df_table.columns[1:]:  # Skip 'id' column
             df_table[i] = df_table[i].str.replace(',', '').str.replace('%', '/100').apply(eval)
 
+        # Log and print the cleaned and transposed DataFrame
+        logging.info("Cleaned and transposed DataFrame with 'id' column:")
         print(df_table)
 
         # Load data to Postgres
@@ -37,13 +58,24 @@ if data is not None:
         db_port = "5432"
         engine = create_engine(f'postgresql+psycopg2://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}')
         df_table.to_sql('profit_loss_data', engine, if_exists='replace', index=False)
-        print("Data loaded to Postgres")
+        logging.info("Data loaded to PostgreSQL")
 
         # Use the existing PostgreSQL connection
         connection = engine.raw_connection()
         cursor = connection.cursor()
 
-        # Rename columns one by one
+        # List the current columns in the table to verify names
+        cursor.execute("""
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_name = 'profit_loss_data';
+        """)
+        columns = cursor.fetchall()
+        logging.info("Columns in 'profit_loss_data' table:")
+        for column in columns:
+            print(column)
+
+        # Rename columns one by one with error handling
         rename_queries = [
             """ALTER TABLE profit_loss_data RENAME COLUMN "Sales +" TO sales;""",
             """ALTER TABLE profit_loss_data RENAME COLUMN "Expenses +" TO expenses;""",
@@ -60,63 +92,17 @@ if data is not None:
         ]
 
         for query in rename_queries:
-            cursor.execute(query)
-            connection.commit()
-
-        # Transform data in Postgres
-        cursor.execute("""
-            ALTER TABLE profit_loss_data
-            ALTER COLUMN sales TYPE numeric,
-            ALTER COLUMN expenses TYPE numeric,
-            ALTER COLUMN operating_profit TYPE numeric,
-            ALTER COLUMN other_income TYPE numeric,
-            ALTER COLUMN interest TYPE numeric,
-            ALTER COLUMN depreciation TYPE numeric,
-            ALTER COLUMN profit_before_tax TYPE numeric,
-            ALTER COLUMN net_profit TYPE numeric,
-            ALTER COLUMN earnings_per_share TYPE numeric;
-
-            ALTER TABLE profit_loss_data
-            ALTER COLUMN operating_profit_margin TYPE decimal(4, 2),
-            ALTER COLUMN tax_rate TYPE decimal(4, 2),
-            ALTER COLUMN dividend_payout_ratio TYPE decimal(4, 2);
-        """)
-        connection.commit()
-
-        # Add ID column
-        cursor.execute("""
-            ALTER TABLE profit_loss_data
-            ADD COLUMN id SERIAL PRIMARY KEY;
-        """)
-        connection.commit()
-
-        # Transpose data
-        cursor.execute("""
-            CREATE TABLE transposed_data AS
-            SELECT 
-                section, 
-                MAX(CASE WHEN column_name = 'Mar_2013' THEN value::numeric END) AS Mar_2013,
-                MAX(CASE WHEN column_name = 'Mar_2014' THEN value::numeric END) AS Mar_2014,
-                MAX(CASE WHEN column_name = 'Mar_2015' THEN value::numeric END) AS Mar_2015,
-                MAX(CASE WHEN column_name = 'Mar_2016' THEN value::numeric END) AS Mar_2016,
-                MAX(CASE WHEN column_name = 'Mar_2017' THEN value::numeric END) AS Mar_2017,
-                MAX(CASE WHEN column_name = 'Mar_2018' THEN value::numeric END) AS Mar_2018,
-                MAX(CASE WHEN column_name = 'Mar_2019' THEN value::numeric END) AS Mar_2019,
-                MAX(CASE WHEN column_name = 'Mar_2020' THEN value::numeric END) AS Mar_2020,
-                MAX(CASE WHEN column_name = 'Mar_2021' THEN value::numeric END) AS Mar_2021,
-                MAX(CASE WHEN column_name = 'Mar_2022' THEN value::numeric END) AS Mar_2022,
-                MAX(CASE WHEN column_name = 'Mar_2023' THEN value::numeric END) AS Mar_2023
-            FROM 
-                profit_loss_data
-            UNPIVOT 
-                (value FOR column_name IN ("Mar_2013", "Mar_2014", "Mar_2015", "Mar_2016", "Mar_2017", "Mar_2018", "Mar_2019", "Mar_2020", "Mar_2021", "Mar_2022", "Mar_2023"))
-            GROUP BY 
-                section;
-        """)
-        connection.commit()
+            try:
+                cursor.execute(query)
+                connection.commit()
+                logging.info(f"Successfully executed query: {query}")
+            except Exception as e:
+                logging.error(f"Error with query: {query}\n{e}")
 
         # Close cursor and connection
         cursor.close()
         connection.close()
+        logging.info("Data transformed and connections closed")
 
-        print("Data transformed and transposed in Postgres")
+else:
+    logging.error("No data found at the given URL or no Profit-Loss section available")
