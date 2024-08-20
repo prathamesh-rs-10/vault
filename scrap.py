@@ -60,7 +60,22 @@ if data is not None:
         db_password = "ps"
         db_port = "5432"
         engine = create_engine(f'postgresql+psycopg2://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}')
-        df_table.to_sql('profit_loss_data', engine, if_exists='replace', index=False)
+        df_table.to_sql('profit_loss_data', engine, if_exists='replace', index=False, columns=[
+    'id',
+    '0',
+    'Sales +',
+    'Expenses +',
+    'Operating Profit',
+    'OPM %',
+    'Other Income +',
+    'Interest',
+    'Depreciation',
+    'Profit before tax',
+    'Tax %',
+    'Net Profit +',
+    'EPS in Rs',
+    'Dividend Payout %'
+])
         logging.info("Data loaded to PostgreSQL")
 
         # Use the existing PostgreSQL connection
