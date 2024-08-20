@@ -43,23 +43,25 @@ if data is not None:
         connection = engine.raw_connection()
         cursor = connection.cursor()
 
-        # Rename columns
-        cursor.execute("""
-            ALTER TABLE profit_loss_data
-            RENAME COLUMN "Sales +" TO sales,
-            RENAME COLUMN "Expenses +" TO expenses,
-            RENAME COLUMN "Operating Profit" TO operating_profit,
-            RENAME COLUMN "OPM %" TO operating_profit_margin,
-            RENAME COLUMN "Other Income +" TO other_income,
-            RENAME COLUMN "Interest" TO interest,
-            RENAME COLUMN "Depreciation" TO depreciation,
-            RENAME COLUMN "Profit before tax" TO profit_before_tax,
-            RENAME COLUMN "Tax %" TO tax_rate,
-            RENAME COLUMN "Net Profit +" TO net_profit,
-            RENAME COLUMN "EPS in Rs" TO earnings_per_share,
-            RENAME COLUMN "Dividend Payout %" TO dividend_payout_ratio;
-        """)
-        connection.commit()
+        # Rename columns one by one
+        rename_queries = [
+            """ALTER TABLE profit_loss_data RENAME COLUMN "Sales +" TO sales;""",
+            """ALTER TABLE profit_loss_data RENAME COLUMN "Expenses +" TO expenses;""",
+            """ALTER TABLE profit_loss_data RENAME COLUMN "Operating Profit" TO operating_profit;""",
+            """ALTER TABLE profit_loss_data RENAME COLUMN "OPM %" TO operating_profit_margin;""",
+            """ALTER TABLE profit_loss_data RENAME COLUMN "Other Income +" TO other_income;""",
+            """ALTER TABLE profit_loss_data RENAME COLUMN "Interest" TO interest;""",
+            """ALTER TABLE profit_loss_data RENAME COLUMN "Depreciation" TO depreciation;""",
+            """ALTER TABLE profit_loss_data RENAME COLUMN "Profit before tax" TO profit_before_tax;""",
+            """ALTER TABLE profit_loss_data RENAME COLUMN "Tax %" TO tax_rate;""",
+            """ALTER TABLE profit_loss_data RENAME COLUMN "Net Profit +" TO net_profit;""",
+            """ALTER TABLE profit_loss_data RENAME COLUMN "EPS in Rs" TO earnings_per_share;""",
+            """ALTER TABLE profit_loss_data RENAME COLUMN "Dividend Payout %" TO dividend_payout_ratio;"""
+        ]
+
+        for query in rename_queries:
+            cursor.execute(query)
+            connection.commit()
 
         # Transform data in Postgres
         cursor.execute("""
