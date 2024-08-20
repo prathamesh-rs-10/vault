@@ -46,22 +46,18 @@ connection = engine.raw_connection()
 cursor = connection.cursor()
 
 # Rename columns
-cursor.execute("""
-    ALTER TABLE profit_loss_data
-    RENAME COLUMN "Sales +" TO sales,
-    RENAME COLUMN "Expenses +" TO expenses,
-    RENAME COLUMN "Operating Profit" TO operating_profit,
-    RENAME COLUMN "OPM %" TO operating_profit_margin,
-    RENAME COLUMN "Other Income +" TO other_income,
-    RENAME COLUMN "Interest" TO interest,
-    RENAME COLUMN "Depreciation" TO depreciation,
-    RENAME COLUMN "Profit before tax" TO profit_before_tax,
-    RENAME COLUMN "Tax %" TO tax_rate,
-    RENAME COLUMN "Net Profit +" TO net_profit,
-    RENAME COLUMN "EPS in Rs" TO earnings_per_share,
-    RENAME COLUMN "Dividend Payout %" TO dividend_payout_ratio;
-""")
-connection.commit()
+cursor.execute("ALTER TABLE profit_loss_data RENAME COLUMN \"Sales +\" TO sales;")
+cursor.execute("ALTER TABLE profit_loss_data RENAME COLUMN \"Expenses +\" TO expenses;")
+cursor.execute("ALTER TABLE profit_loss_data RENAME COLUMN \"Operating Profit\" TO operating_profit;")
+cursor.execute("ALTER TABLE profit_loss_data RENAME COLUMN \"OPM %\" TO operating_profit_margin;")
+cursor.execute("ALTER TABLE profit_loss_data RENAME COLUMN \"Other Income +\" TO other_income;")
+cursor.execute("ALTER TABLE profit_loss_data RENAME COLUMN \"Interest\" TO interest;")
+cursor.execute("ALTER TABLE profit_loss_data RENAME COLUMN \"Depreciation\" TO depreciation;")
+cursor.execute("ALTER TABLE profit_loss_data RENAME COLUMN \"Profit before tax\" TO profit_before_tax;")
+cursor.execute("ALTER TABLE profit_loss_data RENAME COLUMN \"Tax %\" TO tax_rate;")
+cursor.execute("ALTER TABLE profit_loss_data RENAME COLUMN \"Net Profit +\" TO net_profit;")
+cursor.execute("ALTER TABLE profit_loss_data RENAME COLUMN \"EPS in Rs\" TO earnings_per_share;")
+cursor.execute("ALTER TABLE profit_loss_data RENAME COLUMN \"Dividend Payout %\" TO dividend_payout_ratio;")
 
 # Transform data in Postgres
 cursor.execute("""
@@ -83,10 +79,7 @@ cursor.execute("""
 """)
 
 # Add ID column
-cursor.execute("""
-    ALTER TABLE profit_loss_data
-    ADD COLUMN id SERIAL PRIMARY KEY;
-""")
+cursor.execute("ALTER TABLE profit_loss_data ADD COLUMN id SERIAL PRIMARY KEY;")
 
 # Transpose data
 cursor.execute("""
