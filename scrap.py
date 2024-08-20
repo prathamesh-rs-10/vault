@@ -25,7 +25,7 @@ if data is not None:
         start_date = datetime.strptime('Mar 2013', '%b %Y')
         dates = [(start_date + timedelta(years=i)).strftime('%b %Y') for i in range(len(table_data) - 1)]
 
-        df_table = pd.DataFrame(table_data[1:], columns=['Sales +', 'Expenses +', 'Operating Profit', 'OPM %', 'Other Income +', 'Interest', 'Depreciation', 'Profit before tax', 'Tax %', 'Net Profit +', 'EPS in Rs', 'Dividend Payout %', 'Date'])
+        df_table = pd.DataFrame(table_data[1:], columns=['Sales', 'Expenses', 'Operating Profit', 'OPM %', 'Other Income', 'Interest', 'Depreciation', 'Profit before tax', 'Tax %', 'Net Profit', 'EPS in Rs', 'Dividend Payout %', 'Date'])
         df_table['Date'] = dates
         df_table['id'] = range(1, len(df_table) + 1)
         df_table = df_table[['id', 'Date', 'Sales +', 'Expenses +', 'Operating Profit', 'OPM %', 'Other Income +', 'Interest', 'Depreciation', 'Profit before tax', 'Tax %', 'Net Profit +', 'EPS in Rs', 'Dividend Payout %']]
