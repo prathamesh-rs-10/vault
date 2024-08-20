@@ -45,37 +45,23 @@ if data is not None:
 connection = engine.raw_connection()
 cursor = connection.cursor()
 
-# Rename columns
-cursor.execute("ALTER TABLE profit_loss_data RENAME COLUMN \"Sales +  \" TO sales;")
-cursor.execute("ALTER TABLE profit_loss_data RENAME COLUMN \"Expenses +  \" TO expenses;")
-cursor.execute("ALTER TABLE profit_loss_data RENAME COLUMN \"Operating Profit\" TO operating_profit;")
-cursor.execute("ALTER TABLE profit_loss_data RENAME COLUMN \"OPM %\" TO operating_profit_margin;")
-cursor.execute("ALTER TABLE profit_loss_data RENAME COLUMN \"Other Income +  \" TO other_income;")
-cursor.execute("ALTER TABLE profit_loss_data RENAME COLUMN \"Interest\" TO interest;")
-cursor.execute("ALTER TABLE profit_loss_data RENAME COLUMN \"Depreciation\" TO depreciation;")
-cursor.execute("ALTER TABLE profit_loss_data RENAME COLUMN \"Profit before tax\" TO profit_before_tax;")
-cursor.execute("ALTER TABLE profit_loss_data RENAME COLUMN \"Tax %\" TO tax_rate;")
-cursor.execute("ALTER TABLE profit_loss_data RENAME COLUMN \"Net Profit +  \" TO net_profit;")
-cursor.execute("ALTER TABLE profit_loss_data RENAME COLUMN \"EPS in Rs\" TO earnings_per_share;")
-cursor.execute("ALTER TABLE profit_loss_data RENAME COLUMN \"Dividend Payout %\" TO dividend_payout_ratio;")
-
 # Transform data in Postgres
 cursor.execute("""
     ALTER TABLE profit_loss_data
-    ALTER COLUMN sales TYPE numeric,
-    ALTER COLUMN expenses TYPE numeric,
-    ALTER COLUMN operating_profit TYPE numeric,
-    ALTER COLUMN other_income TYPE numeric,
-    ALTER COLUMN interest TYPE numeric,
-    ALTER COLUMN depreciation TYPE numeric,
-    ALTER COLUMN profit_before_tax TYPE numeric,
-    ALTER COLUMN net_profit TYPE numeric,
-    ALTER COLUMN earnings_per_share TYPE numeric;
+    ALTER COLUMN "Sales +" TYPE numeric,
+    ALTER COLUMN "Expenses +" TYPE numeric,
+    ALTER COLUMN "Operating Profit" TYPE numeric,
+    ALTER COLUMN "Other Income +" TYPE numeric,
+    ALTER COLUMN "Interest" TYPE numeric,
+    ALTER COLUMN "Depreciation" TYPE numeric,
+    ALTER COLUMN "Profit before tax" TYPE numeric,
+    ALTER COLUMN "Net Profit +" TYPE numeric,
+    ALTER COLUMN "EPS in Rs" TYPE numeric;
     
     ALTER TABLE profit_loss_data
-    ALTER COLUMN operating_profit_margin TYPE decimal(4, 2),
-    ALTER COLUMN tax_rate TYPE decimal(4, 2),
-    ALTER COLUMN dividend_payout_ratio TYPE decimal(4, 2);
+    ALTER COLUMN "OPM %" TYPE decimal(4, 2),
+    ALTER COLUMN "Tax %" TYPE decimal(4, 2),
+    ALTER COLUMN "Dividend Payout %" TYPE decimal(4, 2);
 """)
 
 # Add ID column
@@ -114,7 +100,7 @@ cursor.execute("""
                    FROM 
                        profit_loss_data
                    UNPIVOT 
-                       (value FOR date IN (Mar_2013, Mar_2014, Mar_2015, Mar_2016, Mar_2017, Mar_2018, Mar_2019, Mar_2020, Mar_2021, Mar_2022, Mar_2023))
+                       (value FOR date IN ("Sales +", "Expenses +", "Operating Profit", "OPM %", "Other Income +", "Interest", "Depreciation", "Profit before tax", "Tax %", "Net Profit +", "EPS in Rs", "Dividend Payout %"))
                   ) AS unpivoted_data
              ) AS pivoted_data
          GROUP BY 
