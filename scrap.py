@@ -1,9 +1,7 @@
 import requests
 from bs4 import BeautifulSoup as bs
 import pandas as pd
-import psycopg2
 from sqlalchemy import create_engine
-
 
 # Web scraping
 url = 'https://screener.in/company/RELIANCE/consolidated/'
@@ -41,78 +39,82 @@ if data is not None:
         df_table.to_sql('profit_loss_data', engine, if_exists='replace', index=False)
         print("Data loaded to Postgres")
 
-# Connect to Postgres database
-connection = engine.raw_connection()
-cursor = connection.cursor()
+        # Use the existing PostgreSQL connection
+        connection = engine.raw_connection()
+        cursor = connection.cursor()
 
-# Transform data in Postgres
-cursor.execute("""
-    ALTER TABLE profit_loss_data
-    ALTER COLUMN "Sales +" TYPE numeric,
-    ALTER COLUMN "Expenses +" TYPE numeric,
-    ALTER COLUMN "Operating Profit" TYPE numeric,
-    ALTER COLUMN "Other Income +" TYPE numeric,
-    ALTER COLUMN "Interest" TYPE numeric,
-    ALTER COLUMN "Depreciation" TYPE numeric,
-    ALTER COLUMN "Profit before tax" TYPE numeric,
-    ALTER COLUMN "Net Profit +" TYPE numeric,
-    ALTER COLUMN "EPS in Rs" TYPE numeric;
-    
-    ALTER TABLE profit_loss_data
-    ALTER COLUMN "OPM %" TYPE decimal(4, 2),
-    ALTER COLUMN "Tax %" TYPE decimal(4, 2),
-    ALTER COLUMN "Dividend Payout %" TYPE decimal(4, 2);
-""")
+        # Rename columns
+        cursor.execute("""
+            ALTER TABLE profit_loss_data
+            RENAME COLUMN "Sales +" TO sales,
+            RENAME COLUMN "Expenses +" TO expenses,
+            RENAME COLUMN "Operating Profit" TO operating_profit,
+            RENAME COLUMN "OPM %" TO operating_profit_margin,
+            RENAME COLUMN "Other Income +" TO other_income,
+            RENAME COLUMN "Interest" TO interest,
+            RENAME COLUMN "Depreciation" TO depreciation,
+            RENAME COLUMN "Profit before tax" TO profit_before_tax,
+            RENAME COLUMN "Tax %" TO tax_rate,
+            RENAME COLUMN "Net Profit +" TO net_profit,
+            RENAME COLUMN "EPS in Rs" TO earnings_per_share,
+            RENAME COLUMN "Dividend Payout %" TO dividend_payout_ratio;
+        """)
+        connection.commit()
 
-# Add ID column
-cursor.execute("ALTER TABLE profit_loss_data ADD COLUMN id SERIAL PRIMARY KEY;")
+        # Transform data in Postgres
+        cursor.execute("""
+            ALTER TABLE profit_loss_data
+            ALTER COLUMN sales TYPE numeric,
+            ALTER COLUMN expenses TYPE numeric,
+            ALTER COLUMN operating_profit TYPE numeric,
+            ALTER COLUMN other_income TYPE numeric,
+            ALTER COLUMN interest TYPE numeric,
+            ALTER COLUMN depreciation TYPE numeric,
+            ALTER COLUMN profit_before_tax TYPE numeric,
+            ALTER COLUMN net_profit TYPE numeric,
+            ALTER COLUMN earnings_per_share TYPE numeric;
 
-# Transpose data
-cursor.execute("""
-    CREATE TABLE transposed_data AS
-    SELECT 
-        section, 
-        Mar_2013, Mar_2014, Mar_2015, Mar_2016, Mar_2017, Mar_2018, Mar_2019, Mar_2020, Mar_2021, Mar_2022, Mar_2023
-    FROM 
-        (SELECT 
-             section, 
-             MAX(CASE WHEN section_date = 'Mar 2013' THEN value END) AS Mar_2013,
-             MAX(CASE WHEN section_date = 'Mar 2014' THEN value END) AS Mar_2014,
-             MAX(CASE WHEN section_date = 'Mar 2015' THEN value END) AS Mar_2015,
-             MAX(CASE WHEN section_date = 'Mar 2016' THEN value END) AS Mar_2016,
-             MAX(CASE WHEN section_date = 'Mar 2017' THEN value END) AS Mar_2017,
-             MAX(CASE WHEN section_date = 'Mar 2018' THEN value END) AS Mar_2018,
-             MAX(CASE WHEN section_date = 'Mar 2019' THEN value END) AS Mar_2019,
-             MAX(CASE WHEN section_date = 'Mar 2020' THEN value END) AS Mar_2020,
-             MAX(CASE WHEN section_date = 'Mar 2021' THEN value END) AS Mar_2021,
-             MAX(CASE WHEN section_date = 'Mar 2022' THEN value END) AS Mar_2022,
-             MAX(CASE WHEN section_date = 'Mar 2023' THEN value END) AS Mar_2023
-         FROM 
-             (SELECT 
-                  section, 
-                  'Mar ' || EXTRACT(YEAR FROM date) AS section_date, 
-                  value
-              FROM 
-                  (SELECT 
-                       section, 
-                       date, 
-                       value
-                   FROM 
-                       profit_loss_data
-                   UNPIVOT 
-                       (value FOR date IN ("Sales +", "Expenses +", "Operating Profit", "OPM %", "Other Income +", "Interest", "Depreciation", "Profit before tax", "Tax %", "Net Profit +", "EPS in Rs", "Dividend Payout %"))
-                  ) AS unpivoted_data
-             ) AS pivoted_data
-         GROUP BY 
-             section
-        ) AS transposed_data;
-""")
+            ALTER TABLE profit_loss_data
+            ALTER COLUMN operating_profit_margin TYPE decimal(4, 2),
+            ALTER COLUMN tax_rate TYPE decimal(4, 2),
+            ALTER COLUMN dividend_payout_ratio TYPE decimal(4, 2);
+        """)
+        connection.commit()
 
-# Commit changes
-connection.commit()
+        # Add ID column
+        cursor.execute("""
+            ALTER TABLE profit_loss_data
+            ADD COLUMN id SERIAL PRIMARY KEY;
+        """)
+        connection.commit()
 
-# Close cursor and connection
-cursor.close()
-connection.close()
+        # Transpose data
+        cursor.execute("""
+            CREATE TABLE transposed_data AS
+            SELECT 
+                section, 
+                MAX(CASE WHEN column_name = 'Mar_2013' THEN value::numeric END) AS Mar_2013,
+                MAX(CASE WHEN column_name = 'Mar_2014' THEN value::numeric END) AS Mar_2014,
+                MAX(CASE WHEN column_name = 'Mar_2015' THEN value::numeric END) AS Mar_2015,
+                MAX(CASE WHEN column_name = 'Mar_2016' THEN value::numeric END) AS Mar_2016,
+                MAX(CASE WHEN column_name = 'Mar_2017' THEN value::numeric END) AS Mar_2017,
+                MAX(CASE WHEN column_name = 'Mar_2018' THEN value::numeric END) AS Mar_2018,
+                MAX(CASE WHEN column_name = 'Mar_2019' THEN value::numeric END) AS Mar_2019,
+                MAX(CASE WHEN column_name = 'Mar_2020' THEN value::numeric END) AS Mar_2020,
+                MAX(CASE WHEN column_name = 'Mar_2021' THEN value::numeric END) AS Mar_2021,
+                MAX(CASE WHEN column_name = 'Mar_2022' THEN value::numeric END) AS Mar_2022,
+                MAX(CASE WHEN column_name = 'Mar_2023' THEN value::numeric END) AS Mar_2023
+            FROM 
+                profit_loss_data
+            UNPIVOT 
+                (value FOR column_name IN ("Mar_2013", "Mar_2014", "Mar_2015", "Mar_2016", "Mar_2017", "Mar_2018", "Mar_2019", "Mar_2020", "Mar_2021", "Mar_2022", "Mar_2023"))
+            GROUP BY 
+                section;
+        """)
+        connection.commit()
 
-print("Data transformed and transposed in Postgres")
+        # Close cursor and connection
+        cursor.close()
+        connection.close()
+
+        print("Data transformed and transposed in Postgres")
