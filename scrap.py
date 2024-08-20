@@ -3,7 +3,6 @@ from bs4 import BeautifulSoup as bs
 import pandas as pd
 import psycopg2
 from sqlalchemy import create_engine
-from kafka import KafkaProducer
 
 # Web scraping
 url = 'https://screener.in/company/RELIANCE/consolidated/'
