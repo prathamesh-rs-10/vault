@@ -101,15 +101,20 @@ if data is not None:
             except Exception as e:
                 logging.error(f"Error with query: {query}\n{e}")
 
-        # Identify and clean numeric data
-        for col in ['sales', 'expenses', 'operating_profit', 'other_income', 
-                    'interest', 'depreciation', 'profit_before_tax', 
-                    'net_profit', 'earnings_per_share']:
-            df_table[col] = df_table[col].str.replace(',', '').apply(pd.to_numeric, errors='coerce')
+        # Apply the correct data types to each column
+        df_table['month'] = df_table['month'].astype(str)  # Convert 'month' to string
 
-        # Convert percentage columns to numeric (e.g., from "10%" to 0.10)
-        for col in ['operating_profit_margin', 'tax_rate', 'dividend_payout_ratio']:
-            df_table[col] = df_table[col].str.replace(',', '').str.replace('%', '/100').apply(eval)
+        # Convert columns to their respective data types, removing commas only if they exist
+        df_table['tax_rate'] = df_table['tax_rate'].apply(lambda x: float(x.replace(',', '').replace('%', '/100')) if ',' in x else float(x.replace('%', '/100').eval()) if '%' in x else float(x))
+        df_table['dividend_payout_ratio'] = df_table['dividend_payout_ratio'].apply(lambda x: float(x.replace(',', '').replace('%', '/100')) if ',' in x else float(x.replace('%', '/100').eval()) if '%' in x else float(x))
+        df_table['earnings_per_share'] = df_table['earnings_per_share'].apply(lambda x: float(x.replace(',', '')) if ',' in x else float(x))
+        df_table['operating_profit_margin'] = df_table['operating_profit_margin'].apply(lambda x: float(x.replace(',', '').replace('%', '/100')) if ',' in x else float(x.replace('%', '/100').eval()) if '%' in x else float(x))
+
+        # Convert all other columns (excluding 'id' and 'month') to integer
+        int_columns = ['sales', 'expenses', 'operating_profit', 'other_income', 
+                       'interest', 'depreciation', 'profit_before_tax', 'net_profit']
+        for col in int_columns:
+            df_table[col] = df_table[col].apply(lambda x: int(x.replace(',', '')) if ',' in x else int(x))
 
         # Log and print the cleaned and transposed DataFrame
         logging.info("Cleaned and transposed DataFrame with 'id' column:")
