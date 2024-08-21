@@ -100,6 +100,7 @@ if data is not None:
         # Rename columns one by one with error handling
         rename_queries = [
             """ALTER TABLE profit_loss_data RENAME COLUMN "Sales +" TO sales;""",
+            """ALTER TABLE profit_loss_data RENAME COLUMN "0" TO month;""",
             """ALTER TABLE profit_loss_data RENAME COLUMN "Expenses +" TO expenses;""",
             """ALTER TABLE profit_loss_data RENAME COLUMN "Operating Profit" TO operating_profit;""",
             """ALTER TABLE profit_loss_data RENAME COLUMN "OPM %" TO operating_profit_margin;""",
