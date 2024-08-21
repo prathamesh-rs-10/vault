@@ -26,34 +26,40 @@ jobs:
             args:
               - -c
               - |
-                # Update and install system dependencies
+                echo "Updating system packages..."
                 apt-get update && apt-get install -y wget unzip gnupg
 
                 # Install Google Chrome
-                wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-                dpkg -i google-chrome-stable_current_amd64.deb
-                apt-get -f install -y
+                echo "Installing Google Chrome..."
+                CHROME_VERSION=$(curl -s https://chromereleases.googleblog.com/ | grep -oP '(?<=Stable Channel Update for Desktop: )\d+\.\d+\.\d+\.\d+' | head -1)
+                echo "Google Chrome version: $CHROME_VERSION"
+                wget -q "https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb"
+                dpkg -i google-chrome-stable_current_amd64.deb || apt-get -f install -y
 
-                # Install Chromedriver
-                wget -q https://chromedriver.storage.googleapis.com/114.0.5735.90/chromedriver_linux64.zip
+                # Install Chromedriver matching the Chrome version
+                echo "Installing Chromedriver..."
+                CHROMEDRIVER_VERSION=$(curl -s https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${CHROME_VERSION%.*} | tr -d '\r')
+                echo "Chromedriver version: $CHROMEDRIVER_VERSION"
+                wget -q "https://chromedriver.storage.googleapis.com/${CHROMEDRIVER_VERSION}/chromedriver_linux64.zip"
                 unzip -o chromedriver_linux64.zip -d /usr/local/bin/
                 chmod +x /usr/local/bin/chromedriver
 
                 # Verify installations
+                echo "Verifying installations..."
                 which google-chrome
                 ls -l /usr/local/bin/chromedriver
                 google-chrome --version
 
-                # Set environment variables
-                export PATH=$PATH:/usr/local/bin
-
-                # Install Python libraries
+                # Upgrade pip and install Python libraries
+                echo "Upgrading pip and installing Python libraries..."
                 pip install --upgrade pip selenium pandas sqlalchemy psycopg2-binary
 
                 # Run the Python script
+                echo "Running the Python script..."
                 cd repo
                 python scrap.py
 
-                # Store output in a file
+                # Create output directory and file
+                echo "Creating output directory and file..."
                 mkdir -p output
                 touch output/success.txt
