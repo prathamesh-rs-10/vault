@@ -45,9 +45,9 @@ if data is not None:
         # Identify and clean numeric data
         for col in df_table.columns[2:]:  # Skip 'id' and 'Period' columns
             if df_table[col].str.isnumeric().all():
-                df_table[col] = df_table[col].str.replace(',', '').apply(pd.to_numeric, errors='coerce')
+                df_table[col] = df_table[col].apply(pd.to_numeric, errors='coerce')
             elif '%' in df_table[col].astype(str).iloc[0]:  # Check if '%' is present
-                df_table[col] = df_table[col].str.replace(',', '').str.replace('%', '/100').apply(eval)
+                df_table[col] = df_table[col].str.replace('%', '/100').apply(eval)
 
         # Log and print the cleaned and transposed DataFrame
         logging.info("Cleaned and transposed DataFrame with 'id' column:")
