@@ -29,15 +29,16 @@ jobs:
                 # Install required libraries
                 pip install selenium pandas sqlalchemy psycopg2-binary
 
-                # Install Chrome and ChromeDriver
+                # Install dependencies
                 apt-get update && apt-get install -y wget unzip \
                   && wget https://chromedriver.storage.googleapis.com/114.0.5735.90/chromedriver_linux64.zip \
                   && unzip chromedriver_linux64.zip -d /usr/local/bin/ \
-                  && chmod +x /usr/local/bin/chromedriver \
-                  && apt-get install -y wget unzip \
-                  && wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
+                  && chmod +x /usr/local/bin/chromedriver
+
+                # Install Google Chrome
+                wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
                   && dpkg -i google-chrome-stable_current_amd64.deb \
-                  && apt-get -f install
+                  && apt-get -f install -y
 
                 # Set environment variables
                 export PATH=$PATH:/usr/local/bin
