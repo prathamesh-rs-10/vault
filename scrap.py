@@ -45,9 +45,17 @@ if data is not None:
         # Identify and clean numeric data
         for col in df_table.columns[2:]:  # Skip 'id' and 'Period' columns
             if df_table[col].str.isnumeric().all():
-                df_table[col] = df_table[col].apply(pd.to_numeric, errors='coerce')
+                df_table[col] = df_table[col].str.replace(',', '').apply(pd.to_numeric, errors='coerce')
             elif '%' in df_table[col].astype(str).iloc[0]:  # Check if '%' is present
-                df_table[col] = df_table[col].str.replace('%', '/100').apply(eval)
+                df_table[col] = df_table[col].str.replace(',', '').str.replace('%', '/100').apply(eval)
+            else:
+                df_table[col] = df_table[col].str.strip()
+
+        # Set data types for specific columns
+        df_table['id'] = df_table['id'].astype(int)
+        df_table['operating_profit_margin'] = df_table['operating_profit_margin'].astype(float)
+        df_table['tax_rate'] = df_table['tax_rate'].astype(float)
+        df_table['dividend_payout_ratio'] = df_table['dividend_payout_ratio'].astype(float)
 
         # Log and print the cleaned and transposed DataFrame
         logging.info("Cleaned and transposed DataFrame with 'id' column:")
@@ -60,22 +68,23 @@ if data is not None:
         db_password = "ps"
         db_port = "5432"
         engine = create_engine(f'postgresql+psycopg2://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}')
+
         # Set the column names
         df_table.columns = [
-    'id',
-    '0',
-    'Sales +',
-    'Expenses +',
-    'Operating Profit',
-    'OPM %',
-    'Other Income +',
-    'Interest',
-    'Depreciation',
-    'Profit before tax',
-    'Tax %',
-    'Net Profit +',
-    'EPS in Rs',
-    'Dividend Payout %'
+            'id',
+            '0',
+            'Sales +',
+            'Expenses +',
+            'Operating Profit',
+            'OPM %',
+            'Other Income +',
+            'Interest',
+            'Depreciation',
+            'Profit before tax',
+            'Tax %',
+            'Net Profit +',
+            'EPS in Rs',
+            'Dividend Payout %'
         ]
 
         # Write the DataFrame to the database
@@ -126,6 +135,5 @@ if data is not None:
         cursor.close()
         connection.close()
         logging.info("Data transformed and connections closed")
-
 else:
     logging.error("No data found at the given URL or no Profit-Loss section available")
