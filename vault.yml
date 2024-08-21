@@ -26,38 +26,25 @@ jobs:
             args:
               - -c
               - |
-                echo "Installing Python libraries..."
+                # Install required libraries
                 pip install selenium pandas sqlalchemy psycopg2-binary
-
-                echo "Installing dependencies..."
+                
+                # Install Google Chrome and ChromeDriver
                 apt-get update && apt-get install -y wget unzip \
                   && wget -q --retry-connrefused --waitretry=2 --timeout=30 https://chromedriver.storage.googleapis.com/114.0.5735.90/chromedriver_linux64.zip \
                   && unzip -o chromedriver_linux64.zip -d /usr/local/bin/ \
-                  && chmod +x /usr/local/bin/chromedriver
-
-                echo "Verifying Chromedriver installation..."
-                ls -l /usr/local/bin/chromedriver
-                which chromedriver
-
-                echo "Installing Google Chrome..."
-                wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
+                  && chmod +x /usr/local/bin/chromedriver \
+                  && wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
                   && dpkg -i google-chrome-stable_current_amd64.deb \
                   && apt-get -f install -y
 
-                echo "Verifying Google Chrome installation..."
-                google-chrome --version
-
-                echo "Setting environment variables..."
+                # Set environment variables
                 export PATH=$PATH:/usr/local/bin
-
-                echo "Changing directory to repo..."
+                
+                # Run the Python script
                 cd repo
-
-                echo "Running Python script..."
                 python scrap.py
 
-                echo "Creating output directory and file..."
+                # Store output in a file
                 mkdir -p output
                 touch output/success.txt
-
-                echo "Script execution completed."
