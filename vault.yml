@@ -29,10 +29,8 @@ jobs:
                 # Install required libraries
                 pip install selenium
                 pip install pandas
-                pip install requests
                 pip install psycopg2
                 pip install SQLAlchemy
-                pip install kafka-python
 
                 # Download ChromeDriver (or any other driver you're using)
                 apt-get update && apt-get install -y wget unzip
