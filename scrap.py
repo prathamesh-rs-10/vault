@@ -42,25 +42,6 @@ if data is not None:
         columns = ['id'] + [col for col in df_table.columns if col != 'id']
         df_table = df_table[columns]
 
-        # Identify and clean numeric data
-        for col in df_table.columns[2:]:  # Skip 'id' and 'Period' columns
-            if df_table[col].str.isnumeric().all():
-                df_table[col] = df_table[col].str.replace(',', '').apply(pd.to_numeric, errors='coerce')
-            elif '%' in df_table[col].astype(str).iloc[0]:  # Check if '%' is present
-                df_table[col] = df_table[col].str.replace(',', '').str.replace('%', '/100').apply(eval)
-            else:
-                df_table[col] = df_table[col].str.strip()
-
-        # Set data types for specific columns
-        df_table['id'] = df_table['id'].astype(int)
-        df_table['operating_profit_margin'] = df_table['operating_profit_margin'].astype(float)
-        df_table['tax_rate'] = df_table['tax_rate'].astype(float)
-        df_table['dividend_payout_ratio'] = df_table['dividend_payout_ratio'].astype(float)
-
-        # Log and print the cleaned and transposed DataFrame
-        logging.info("Cleaned and transposed DataFrame with 'id' column:")
-        print(df_table)
-
         # Load data to Postgres
         db_host = "192.168.3.66"
         db_name = "postgres"
@@ -95,17 +76,6 @@ if data is not None:
         connection = engine.raw_connection()
         cursor = connection.cursor()
 
-        # List the current columns in the table to verify names
-        cursor.execute("""
-            SELECT column_name
-            FROM information_schema.columns
-            WHERE table_name = 'profit_loss_data';
-        """)
-        columns = cursor.fetchall()
-        logging.info("Columns in 'profit_loss_data' table:")
-        for column in columns:
-            print(column)
-
         # Rename columns one by one with error handling
         rename_queries = [
             """ALTER TABLE profit_loss_data RENAME COLUMN "Sales +" TO sales;""",
@@ -131,9 +101,24 @@ if data is not None:
             except Exception as e:
                 logging.error(f"Error with query: {query}\n{e}")
 
+        # Identify and clean numeric data
+        for col in ['sales', 'expenses', 'operating_profit', 'other_income', 
+                    'interest', 'depreciation', 'profit_before_tax', 
+                    'net_profit', 'earnings_per_share']:
+            df_table[col] = df_table[col].str.replace(',', '').apply(pd.to_numeric, errors='coerce')
+
+        # Convert percentage columns to numeric (e.g., from "10%" to 0.10)
+        for col in ['operating_profit_margin', 'tax_rate', 'dividend_payout_ratio']:
+            df_table[col] = df_table[col].str.replace(',', '').str.replace('%', '/100').apply(eval)
+
+        # Log and print the cleaned and transposed DataFrame
+        logging.info("Cleaned and transposed DataFrame with 'id' column:")
+        print(df_table)
+
         # Close cursor and connection
         cursor.close()
         connection.close()
         logging.info("Data transformed and connections closed")
+
 else:
     logging.error("No data found at the given URL or no Profit-Loss section available")
