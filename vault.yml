@@ -27,13 +27,25 @@ jobs:
               - -c
               - |
                 # Install required libraries
-                pip install bs4
+                pip install selenium
                 pip install pandas
                 pip install requests
                 pip install psycopg2
                 pip install SQLAlchemy
+                pip install kafka-python
+
+                # Download ChromeDriver (or any other driver you're using)
+                apt-get update && apt-get install -y wget unzip
+                wget https://chromedriver.storage.googleapis.com/114.0.5735.90/chromedriver_linux64.zip
+                unzip chromedriver_linux64.zip -d /usr/local/bin/
+                chmod +x /usr/local/bin/chromedriver
+
+                # Set up environment for Selenium
+                export PATH=$PATH:/usr/local/bin
+
                 cd repo
                 python scrap.py
+
                 # Store output in a file
                 mkdir -p output
                 touch output/success.txt
