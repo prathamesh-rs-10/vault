@@ -9,19 +9,27 @@ import time
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Define the companies and tables
-companies = ['TCS', 'ITC', 'NTPC']
-tables = ['tcs_data', 'itc_data', 'ntpc_data']
+# Load the company.csv file
+companies_df = pd.read_csv('company.csv')
 
-# Check if the number of companies and tables match
-if len(companies) != len(tables):
-    logging.error("Number of companies and tables must match")
-    exit(1)
+# Define the PostgreSQL database connection parameters
+db_host = "192.168.3.66"
+db_name = "postgres"
+db_user = "ps"
+db_password = "ps"
+db_port = "5432"
+engine = create_engine(f'postgresql+psycopg2://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}')
 
-# Iterate over the companies and tables
-for company, table in zip(companies, tables):
+# Create a single table to store all data
+table_name = 'all_company_data'
+
+# Iterate over the companies
+for index, row in companies_df.iterrows():
+    company_symbol = row['Symbol']
+    company_name = row['Company Name']
+
     # URL for the profit-loss data
-    url = f'https://screener.in/company/{company}/consolidated/'
+    url = f'https://screener.in/company/{company_symbol}/consolidated/'
 
     # Send a GET request to the URL
     response = requests.get(url)
@@ -67,39 +75,12 @@ for company, table in zip(companies, tables):
                     elif '%' in df_table[col].astype(str).iloc[0]:  # Check if '%' is present
                         df_table[col] = df_table[col].str.replace(',', '').str.replace('%', '/100').apply(eval)
 
-                # Log and print the cleaned and transposed DataFrame
-                logging.info("Cleaned and transposed DataFrame with 'id' column:")
-                print(df_table)
+                # Add a new column for the company name
+                df_table['company'] = company_name
 
-                # Load data to PostgreSQL
-                db_host = "192.168.3.66"
-                db_name = "postgres"
-                db_user = "ps"
-                db_password = "ps"
-                db_port = "5432"
-                engine = create_engine(f'postgresql+psycopg2://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}')
-
-                # Set the column names
-                df_table.columns = [
-                    'id',
-                    '0',
-                    'Sales +',
-                    'Expenses +',
-                    'Operating Profit',
-                    'OPM %',
-                    'Other Income +',
-                    'Interest',
-                    'Depreciation',
-                    'Profit before tax',
-                    'Tax %',
-                    'Net Profit +',
-                    'EPS in Rs',
-                    'Dividend Payout %'
-                ]
-
-                # Write the DataFrame to the database
-                df_table.to_sql(table, engine, if_exists='replace', index=False)
-                logging.info("Data loaded to PostgreSQL")
+                # Append data to the single table
+                df_table.to_sql(table_name, engine, if_exists='append', index=False)
+                logging.info(f"Data loaded for {company_name}")
 
                 # Use the existing PostgreSQL connection
                 connection = engine.raw_connection()
@@ -110,26 +91,26 @@ for company, table in zip(companies, tables):
                     SELECT column_name
                     FROM information_schema.columns
                     WHERE table_name = %s;
-                """, (table,))
+                """, (table_name,))
                 columns = cursor.fetchall()
-                logging.info(f"Columns in '{table}' table:")
+                logging.info(f"Columns in '{table_name}' table:")
                 for column in columns:
                     print(column)
 
                 rename_queries = [
-                    f"""ALTER TABLE {table} RENAME COLUMN "Sales +" TO sales;""",
-                    f"""ALTER TABLE {table} RENAME COLUMN "0" TO month;""",
-                    f"""ALTER TABLE {table} RENAME COLUMN "Expenses +" TO expenses;""",
-                    f"""ALTER TABLE {table} RENAME COLUMN "Operating Profit" TO operating_profit;""",
-                    f"""ALTER TABLE {table} RENAME COLUMN "OPM %" TO operating_profit_margin;""",
-                    f"""ALTER TABLE {table} RENAME COLUMN "Other Income +" TO other_income;""",
-                    f"""ALTER TABLE {table} RENAME COLUMN "Interest" TO interest;""",
-                    f"""ALTER TABLE {table} RENAME COLUMN "Depreciation" TO depreciation;""",
-                    f"""ALTER TABLE {table} RENAME COLUMN "Profit before tax" TO profit_before_tax;""",
-                    f"""ALTER TABLE {table} RENAME COLUMN "Tax %" TO tax_rate;""",
-                    f"""ALTER TABLE {table} RENAME COLUMN "Net Profit +" TO net_profit;""",
-                    f"""ALTER TABLE {table} RENAME COLUMN "EPS in Rs" TO earnings_per_share;""",
-                    f"""ALTER TABLE {table} RENAME COLUMN "Dividend Payout %" TO dividend_payout_ratio;"""
+                    f"""ALTER TABLE {table_name} RENAME COLUMN "Sales +" TO sales;""",
+                    f"""ALTER TABLE {table_name} RENAME COLUMN "0" TO month;""",
+                    f"""ALTER TABLE {table_name} RENAME COLUMN "Expenses +" TO expenses;""",
+                    f"""ALTER TABLE {table_name} RENAME COLUMN "Operating Profit" TO operating_profit;""",
+                    f"""ALTER TABLE {table_name} RENAME COLUMN "OPM %" TO operating_profit_margin;""",
+                    f"""ALTER TABLE {table_name} RENAME COLUMN "Other Income +" TO other_income;""",
+                    f"""ALTER TABLE {table_name} RENAME COLUMN "Interest" TO interest;""",
+                    f"""ALTER TABLE {table_name} RENAME COLUMN "Depreciation" TO depreciation;""",
+                    f"""ALTER TABLE {table_name} RENAME COLUMN "Profit before tax" TO profit_before_tax;""",
+                    f"""ALTER TABLE {table_name} RENAME COLUMN "Tax %" TO tax_rate;""",
+                    f"""ALTER TABLE {table_name} RENAME COLUMN "Net Profit +" TO net_profit;""",
+                    f"""ALTER TABLE {table_name} RENAME COLUMN "EPS in Rs" TO earnings_per_share;""",
+                    f"""ALTER TABLE {table_name} RENAME COLUMN "Dividend Payout %" TO dividend_payout_ratio;"""
                 ]
 
                 for query in rename_queries:
@@ -150,3 +131,6 @@ for company, table in zip(companies, tables):
 
     else:
         logging.error(f"Failed to retrieve data from {url}. Status code: {response.status_code}")
+
+# End of the script
+logging.info("Script execution completed")
