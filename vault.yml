@@ -40,9 +40,16 @@ jobs:
                 echo "Installing Chromedriver..."
                 CHROMEDRIVER_VERSION=$(curl -s https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${CHROME_VERSION%.*} | tr -d '\r')
                 echo "Chromedriver version: $CHROMEDRIVER_VERSION"
+                mkdir -p /usr/local/bin/  # Ensure directory exists
                 wget -q "https://chromedriver.storage.googleapis.com/${CHROMEDRIVER_VERSION}/chromedriver_linux64.zip"
                 unzip -o chromedriver_linux64.zip -d /usr/local/bin/
                 chmod +x /usr/local/bin/chromedriver
+
+                # Verify Chromedriver installation
+                if [ ! -x /usr/local/bin/chromedriver ]; then
+                  echo "ChromeDriver installation failed"
+                  exit 1
+                fi
 
                 # Verify installations
                 echo "Verifying installations..."
