@@ -1,166 +1,152 @@
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
+import argparse
+import requests
+from bs4 import BeautifulSoup
 import pandas as pd
 from sqlalchemy import create_engine
 import logging
 import time
-import os
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Set up Selenium Chrome options
-chrome_options = Options()
-chrome_options.add_argument("--headless")  # Run in headless mode
-chrome_options.add_argument("--no-sandbox")
-chrome_options.add_argument("--disable-dev-shm-usage")
+# Define the companies and tables
+companies = ['TCS', 'ITC', 'NTPC']
+tables = ['tcs_data', 'itc_data', 'ntpc_data']
 
-# Initialize the Chrome driver
-chrome_driver_path = "/usr/local/bin/chromedriver"
-if not os.path.exists(chrome_driver_path):
-    logging.error(f"Chromedriver not found at {chrome_driver_path}")
-    raise FileNotFoundError(f"Chromedriver not found at {chrome_driver_path}")
+# Check if the number of companies and tables match
+if len(companies) != len(tables):
+    logging.error("Number of companies and tables must match")
+    exit(1)
 
-service = Service(chrome_driver_path)
-driver = webdriver.Chrome(service=service, options=chrome_options)
+# Iterate over the companies and tables
+for company, table in zip(companies, tables):
+    # URL for the profit-loss data
+    url = f'https://screener.in/company/{company}/consolidated/'
 
-try:
-    
-    # Login to screener.in
-    driver.get('https://screener.in/login/')
-    driver.find_element(By.NAME, 'username').send_keys('prathameshsawantplacements@gmail.com')
-    driver.find_element(By.NAME, 'password').send_keys('Gaurav@123')
-    driver.find_element(By.XPATH, '//button[text()="Login"]').click()
+    # Send a GET request to the URL
+    response = requests.get(url)
 
-    # Wait for login to succeed
-    time.sleep(5)
+    # Check if the request was successful
+    if response.status_code == 200:
+        # Parse the HTML content using BeautifulSoup
+        soup = BeautifulSoup(response.content, 'html.parser')
 
-    # Web scraping
-    url = 'https://screener.in/company/RELIANCE/consolidated/'
-    logging.info(f"Fetching data from URL: {url}")
-    driver.get(url)
+        # Find the profit-loss section and table
+        data = soup.find(id="profit-loss")
+        if data:
+            tdata = data.find("table")
+            if tdata:
+                rows = tdata.find_all("tr")
+                table_data = []
+                for row in rows:
+                    row_data = [cell.text.strip() for cell in row.find_all(["th", "td"])]
+                    table_data.append(row_data)
 
-    # Wait for the page to load
-    time.sleep(5)  # Adjust if necessary
+                # Convert the scraped table data to a DataFrame
+                df_table = pd.DataFrame(table_data)
+                df_table.iloc[0, 0] = 'Section'
+                df_table.columns = df_table.iloc[0]
+                df_table = df_table.iloc[1:, :-2]
 
-    # Find the profit-loss section and table
-    data = driver.find_element(By.ID, "profit-loss")
-    if data:
-        tdata = data.find_element(By.TAG_NAME, "table")
-        if tdata:
-            rows = tdata.find_elements(By.TAG_NAME, "tr")
-            table_data = []
-            for row in rows:
-                row_data = [cell.text.strip() for cell in row.find_elements(By.TAG_NAME, ["th", "td"])]
-                table_data.append(row_data)
+                # Transpose the DataFrame to have columns as periods and rows as metrics
+                df_table = df_table.set_index('Section').transpose()
 
-            # Convert the scraped table data to a DataFrame
-            df_table = pd.DataFrame(table_data)
-            df_table.iloc[0, 0] = 'Section'
-            df_table.columns = df_table.iloc[0]
-            df_table = df_table.iloc[1:, :-2]
+                # Reset index after transpose and add an 'id' column
+                df_table.reset_index(inplace=True)
+                df_table.rename(columns={'index': 'Period'}, inplace=True)
+                df_table['id'] = range(1, len(df_table) + 1)
 
-            # Transpose the DataFrame to have columns as periods and rows as metrics
-            df_table = df_table.set_index('Section').transpose()
+                # Rearrange columns to put 'id' at the beginning
+                columns = ['id'] + [col for col in df_table.columns if col != 'id']
+                df_table = df_table[columns]
 
-            # Reset index after transpose and add an 'id' column
-            df_table.reset_index(inplace=True)
-            df_table.rename(columns={'index': 'Period'}, inplace=True)
-            df_table['id'] = range(1, len(df_table) + 1)
+                # Identify and clean numeric data
+                for col in df_table.columns[2:]:  # Skip 'id' and 'Period' columns
+                    if df_table[col].str.isnumeric().all():
+                        df_table[col] = df_table[col].str.replace(',', '').apply(pd.to_numeric, errors='coerce')
+                    elif '%' in df_table[col].astype(str).iloc[0]:  # Check if '%' is present
+                        df_table[col] = df_table[col].str.replace(',', '').str.replace('%', '/100').apply(eval)
 
-            # Rearrange columns to put 'id' at the beginning
-            columns = ['id'] + [col for col in df_table.columns if col != 'id']
-            df_table = df_table[columns]
+                # Log and print the cleaned and transposed DataFrame
+                logging.info("Cleaned and transposed DataFrame with 'id' column:")
+                print(df_table)
 
-            # Identify and clean numeric data
-            for col in df_table.columns[2:]:  # Skip 'id' and 'Period' columns
-                if df_table[col].str.isnumeric().all():
-                    df_table[col] = df_table[col].str.replace(',', '').apply(pd.to_numeric, errors='coerce')
-                elif '%' in df_table[col].astype(str).iloc[0]:  # Check if '%' is present
-                    df_table[col] = df_table[col].str.replace(',', '').str.replace('%', '/100').apply(eval)
+                # Load data to PostgreSQL
+                db_host = "192.168.3.66"
+                db_name = "postgres"
+                db_user = "ps"
+                db_password = "ps"
+                db_port = "5432"
+                engine = create_engine(f'postgresql+psycopg2://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}')
 
-            # Log and print the cleaned and transposed DataFrame
-            logging.info("Cleaned and transposed DataFrame with 'id' column:")
-            print(df_table)
+                # Set the column names
+                df_table.columns = [
+                    'id',
+                    '0',
+                    'Sales +',
+                    'Expenses +',
+                    'Operating Profit',
+                    'OPM %',
+                    'Other Income +',
+                    'Interest',
+                    'Depreciation',
+                    'Profit before tax',
+                    'Tax %',
+                    'Net Profit +',
+                    'EPS in Rs',
+                    'Dividend Payout %'
+                ]
 
-            # Load data to PostgreSQL
-            db_host = "192.168.3.66"
-            db_name = "postgres"
-            db_user = "ps"
-            db_password = "ps"
-            db_port = "5432"
-            engine = create_engine(f'postgresql+psycopg2://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}')
-            # Set the column names
-            df_table.columns = [
-                'id',
-                '0',
-                'Sales +',
-                'Expenses +',
-                'Operating Profit',
-                'OPM %',
-                'Other Income +',
-                'Interest',
-                'Depreciation',
-                'Profit before tax',
-                'Tax %',
-                'Net Profit +',
-                'EPS in Rs',
-                'Dividend Payout %'
-            ]
+                # Write the DataFrame to the database
+                df_table.to_sql(table, engine, if_exists='replace', index=False)
+                logging.info("Data loaded to PostgreSQL")
 
-            # Write the DataFrame to the database
-            df_table.to_sql('profit_loss_data', engine, if_exists='replace', index=False)
-            logging.info("Data loaded to PostgreSQL")
+                # Use the existing PostgreSQL connection
+                connection = engine.raw_connection()
+                cursor = connection.cursor()
 
-            # Use the existing PostgreSQL connection
-            connection = engine.raw_connection()
-            cursor = connection.cursor()
+                # List the current columns in the table to verify names
+                cursor.execute("""
+                    SELECT column_name
+                    FROM information_schema.columns
+                    WHERE table_name = %s;
+                """, (table,))
+                columns = cursor.fetchall()
+                logging.info(f"Columns in '{table}' table:")
+                for column in columns:
+                    print(column)
 
-            # List the current columns in the table to verify names
-            cursor.execute("""
-                SELECT column_name
-                FROM information_schema.columns
-                WHERE table_name = 'profit_loss_data';
-            """)
-            columns = cursor.fetchall()
-            logging.info("Columns in 'profit_loss_data' table:")
-            for column in columns:
-                print(column)
+                rename_queries = [
+                    f"""ALTER TABLE {table} RENAME COLUMN "Sales +" TO sales;""",
+                    f"""ALTER TABLE {table} RENAME COLUMN "0" TO month;""",
+                    f"""ALTER TABLE {table} RENAME COLUMN "Expenses +" TO expenses;""",
+                    f"""ALTER TABLE {table} RENAME COLUMN "Operating Profit" TO operating_profit;""",
+                    f"""ALTER TABLE {table} RENAME COLUMN "OPM %" TO operating_profit_margin;""",
+                    f"""ALTER TABLE {table} RENAME COLUMN "Other Income +" TO other_income;""",
+                    f"""ALTER TABLE {table} RENAME COLUMN "Interest" TO interest;""",
+                    f"""ALTER TABLE {table} RENAME COLUMN "Depreciation" TO depreciation;""",
+                    f"""ALTER TABLE {table} RENAME COLUMN "Profit before tax" TO profit_before_tax;""",
+                    f"""ALTER TABLE {table} RENAME COLUMN "Tax %" TO tax_rate;""",
+                    f"""ALTER TABLE {table} RENAME COLUMN "Net Profit +" TO net_profit;""",
+                    f"""ALTER TABLE {table} RENAME COLUMN "EPS in Rs" TO earnings_per_share;""",
+                    f"""ALTER TABLE {table} RENAME COLUMN "Dividend Payout %" TO dividend_payout_ratio;"""
+                ]
 
-            # Rename columns one by one with error handling
-            rename_queries = [
-                """ALTER TABLE profit_loss_data RENAME COLUMN "Sales +" TO sales;""",
-                """ALTER TABLE profit_loss_data RENAME COLUMN "0" TO month;""",
-                """ALTER TABLE profit_loss_data RENAME COLUMN "Expenses +" TO expenses;""",
-                """ALTER TABLE profit_loss_data RENAME COLUMN "Operating Profit" TO operating_profit;""",
-                """ALTER TABLE profit_loss_data RENAME COLUMN "OPM %" TO operating_profit_margin;""",
-                """ALTER TABLE profit_loss_data RENAME COLUMN "Other Income +" TO other_income;""",
-                """ALTER TABLE profit_loss_data RENAME COLUMN "Interest" TO interest;""",
-                """ALTER TABLE profit_loss_data RENAME COLUMN "Depreciation" TO depreciation;""",
-                """ALTER TABLE profit_loss_data RENAME COLUMN "Profit before tax" TO profit_before_tax;""",
-                """ALTER TABLE profit_loss_data RENAME COLUMN "Tax %" TO tax_rate;""",
-                """ALTER TABLE profit_loss_data RENAME COLUMN "Net Profit +" TO net_profit;""",
-                """ALTER TABLE profit_loss_data RENAME COLUMN "EPS in Rs" TO earnings_per_share;""",
-                """ALTER TABLE profit_loss_data RENAME COLUMN "Dividend Payout %" TO dividend_payout_ratio;"""
-            ]
+                for query in rename_queries:
+                    try:
+                        cursor.execute(query)
+                        connection.commit()
+                        logging.info(f"Successfully executed query: {query}")
+                    except Exception as e:
+                        logging.error(f"Error with query: {query}\n{e}")
 
-            for query in rename_queries:
-                try:
-                    cursor.execute(query)
-                    connection.commit()
-                    logging.info(f"Successfully executed query: {query}")
-                except Exception as e:
-                    logging.error(f"Error with query: {query}\n{e}")
+                # Close cursor and connection
+                cursor.close()
+                connection.close()
+                logging.info("Data transformed and connections closed")
 
-            # Close cursor and connection
-            cursor.close()
-            connection.close()
-            logging.info("Data transformed and connections closed")
+        else:
+            logging.error("No data found at the given URL or no Profit-Loss section available")
 
     else:
-        logging.error("No data found at the given URL or no Profit-Loss section available")
-
-finally:
-    driver.quit()
+        logging.error(f"Failed to retrieve data from {url}. Status code: {response.status_code}")
