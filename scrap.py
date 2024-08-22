@@ -28,15 +28,29 @@ for index, row in companies_df.iterrows():
     company_symbol = row['Symbol']
     company_name = row['Company Name']
 
-    # URL for the profit-loss data
     url = f'https://screener.in/company/{company_symbol}/consolidated/'
+    delay = 1  # seconds
+    max_retries = 5
 
-    # Send a GET request to the URL
-    response = requests.get(url)
+    for attempt in range(max_retries):
+        try:
+            response = requests.get(url)
+            break
+        except requests.exceptions.ConnectionError:
+            logging.error(f"Attempt {attempt+1}/{max_retries} failed to connect to {url}. Retrying in {delay} seconds...")
+            time.sleep(delay)
+            delay *= 2  # Exponential backoff
+        except requests.exceptions.HTTPError as e:
+            logging.error(f"HTTP Error {e.response.status_code} for {url}. Skipping...")
+            break
+        except Exception as e:
+            logging.error(f"Error for {url}: {e}. Skipping...")
+            break
+    else:
+        logging.error(f"Failed to connect to {url} after {max_retries} attempts. Skipping...")
+        continue
 
-    # Check if the request was successful
     if response.status_code == 200:
-        # Parse the HTML content using BeautifulSoup
         soup = BeautifulSoup(response.content, 'html.parser')
 
         # Find the profit-loss section and table
