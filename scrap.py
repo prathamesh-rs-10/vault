@@ -1,6 +1,7 @@
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
 import pandas as pd
 from sqlalchemy import create_engine
 import logging
@@ -26,6 +27,16 @@ service = Service(chrome_driver_path)
 driver = webdriver.Chrome(service=service, options=chrome_options)
 
 try:
+    
+    # Login to screener.in
+    driver.get('https://screener.in/login/')
+    driver.find_element(By.NAME, 'username').send_keys('prathameshsawantplacements@gmail.com')
+    driver.find_element(By.NAME, 'password').send_keys('Gaurav@123')
+    driver.find_element(By.XPATH, '//button[text()="Login"]').click()
+
+    # Wait for login to succeed
+    time.sleep(5)
+
     # Web scraping
     url = 'https://screener.in/company/RELIANCE/consolidated/'
     logging.info(f"Fetching data from URL: {url}")
