@@ -82,6 +82,8 @@ for index, row in companies_df.iterrows():
                 df_table.to_sql(table_name, engine, if_exists='append', index=False)
                 logging.info(f"Data loaded for {company_name}")
 
+                time.sleep(2)
+
                 # Use the existing PostgreSQL connection
                 connection = engine.raw_connection()
                 cursor = connection.cursor()
