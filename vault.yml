@@ -31,16 +31,13 @@ jobs:
 
                 # Install Google Chrome
                 echo "Installing Google Chrome..."
-                CHROME_VERSION=$(curl -s https://chromereleases.googleblog.com/ | grep -oP '(?<=Stable Channel Update for Desktop: )\d+\.\d+\.\d+\.\d+' | head -1)
-                echo "Google Chrome version: $CHROME_VERSION"
                 wget -q "https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb"
                 dpkg -i google-chrome-stable_current_amd64.deb || apt-get -f install -y
 
-                # Install Chromedriver matching the Chrome version
+                # Install Chromedriver matching the installed Chrome version
                 echo "Installing Chromedriver..."
+                CHROME_VERSION=$(google-chrome --version | grep -oP '\d+\.\d+\.\d+\.\d+')
                 CHROMEDRIVER_VERSION=$(curl -s https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${CHROME_VERSION%.*} | tr -d '\r')
-                echo "Chromedriver version: $CHROMEDRIVER_VERSION"
-                mkdir -p /usr/local/bin/  # Ensure directory exists
                 wget -q "https://chromedriver.storage.googleapis.com/${CHROMEDRIVER_VERSION}/chromedriver_linux64.zip"
                 unzip -o chromedriver_linux64.zip -d /usr/local/bin/
                 chmod +x /usr/local/bin/chromedriver
