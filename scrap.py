@@ -1,14 +1,20 @@
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect
 import logging
+import time
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Load the company.csv file
-companies_df = pd.read_csv('company.csv')
+try:
+    companies_df = pd.read_csv('company.csv')
+    logging.info("Successfully loaded company.csv file.")
+except Exception as e:
+    logging.error(f"Error loading company.csv file: {e}")
+    raise
 
 # Define the PostgreSQL database connection parameters
 db_host = "192.168.3.66"
@@ -16,119 +22,122 @@ db_name = "postgres"
 db_user = "ps"
 db_password = "ps"
 db_port = "5432"
-engine = create_engine(f'postgresql+psycopg2://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}')
+
+try:
+    engine = create_engine(f'postgresql+psycopg2://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}')
+    connection = engine.connect()
+    logging.info("Successfully connected to the PostgreSQL database.")
+except Exception as e:
+    logging.error(f"Error connecting to the PostgreSQL database: {e}")
+    raise
 
 # Create a single table to store all data
 table_name = 'all_company_data'
+all_columns = set()  # To keep track of all possible columns
 
 # Iterate over the companies
 for index, row in companies_df.iterrows():
     company_symbol = row['Symbol']
     company_name = row['Company Name']
+    logging.info(f"Processing data for {company_name} ({company_symbol})...")
 
     # URL for the profit-loss data
     url = f'https://screener.in/company/{company_symbol}/consolidated/'
 
     # Send a GET request to the URL
-    response = requests.get(url)
+    try:
+        response = requests.get(url)
+        response.raise_for_status()  # Raises an HTTPError for bad responses
+        logging.info(f"Successfully retrieved data from {url}")
+    except requests.exceptions.HTTPError as http_err:
+        logging.error(f"HTTP error occurred: {http_err}")
+        continue
+    except Exception as e:
+        logging.error(f"An error occurred while requesting data from {url}: {e}")
+        continue
 
-    # Check if the request was successful
-    if response.status_code == 200:
-        # Parse the HTML content using BeautifulSoup
+    # Parse the HTML content using BeautifulSoup
+    try:
         soup = BeautifulSoup(response.content, 'html.parser')
-
-        # Find the profit-loss section and table
         data = soup.find(id="profit-loss")
-        if data:
-            tdata = data.find("table")
-            if tdata:
-                rows = tdata.find_all("tr")
-                table_data = []
-                for row in rows:
-                    row_data = [cell.text.strip() for cell in row.find_all(["th", "td"])]
-                    table_data.append(row_data)
+        if not data:
+            logging.warning(f"No profit-loss section found for {company_name}")
+            continue
 
-                # Convert the scraped table data to a DataFrame
-                df_table = pd.DataFrame(table_data)
-                df_table.iloc[0, 0] = 'Section'
-                df_table.columns = df_table.iloc[0]
-                df_table = df_table.iloc[1:, :-2]
+        tdata = data.find("table")
+        if not tdata:
+            logging.warning(f"No table found in profit-loss section for {company_name}")
+            continue
+    except Exception as e:
+        logging.error(f"Error parsing HTML content for {company_name}: {e}")
+        continue
 
-                # Transpose the DataFrame to have columns as periods and rows as metrics
-                df_table = df_table.set_index('Section').transpose()
+    # Process table data
+    try:
+        rows = tdata.find_all("tr")
+        table_data = []
+        for row in rows:
+            row_data = [cell.text.strip() for cell in row.find_all(["th", "td"])]
+            table_data.append(row_data)
 
-                # Reset index after transpose and add an 'id' column
-                df_table.reset_index(inplace=True)
-                df_table.rename(columns={'index': 'Period'}, inplace=True)
-                df_table['id'] = range(1, len(df_table) + 1)
+        # Convert the scraped table data to a DataFrame
+        df_table = pd.DataFrame(table_data)
+        df_table.iloc[0, 0] = 'Section'
+        df_table.columns = df_table.iloc[0]
+        df_table = df_table.iloc[1:, :-2]
 
-                # Rearrange columns to put 'id' at the beginning
-                columns = ['id'] + [col for col in df_table.columns if col != 'id']
-                df_table = df_table[columns]
+        # Transpose the DataFrame to have columns as periods and rows as metrics
+        df_table = df_table.set_index('Section').transpose()
 
-                # Identify and clean numeric data
-                for col in df_table.columns[2:]:  # Skip 'id' and 'Period' columns
-                    if df_table[col].str.isnumeric().all():
-                        df_table[col] = df_table[col].str.replace(',', '').apply(pd.to_numeric, errors='coerce')
-                    elif '%' in df_table[col].astype(str).iloc[0]:  # Check if '%' is present
-                        df_table[col] = df_table[col].str.replace(',', '').str.replace('%', '/100').apply(eval)
+        # Reset index after transpose and add an 'id' column
+        df_table.reset_index(inplace=True)
+        df_table.rename(columns={'index': 'Period'}, inplace=True)
 
-                # Add a new column for the company name
-                df_table['company'] = company_name
+        # Update all_columns with the current company's columns
+        current_columns = set(df_table.columns)
+        all_columns.update(current_columns)
+        logging.info(f"Identified {len(current_columns)} columns for {company_name}: {current_columns}")
 
-                # Append data to the single table
-                df_table.to_sql(table_name, engine, if_exists='append', index=False)
-                logging.info(f"Data loaded for {company_name}")
+        # Add a new column for the company name
+        df_table['company'] = company_name
 
-                # Use the existing PostgreSQL connection
-                connection = engine.raw_connection()
-                cursor = connection.cursor()
+        # Align with the full set of columns, filling missing columns with None
+        df_table = df_table.reindex(columns=sorted(all_columns), fill_value=None)
+    except Exception as e:
+        logging.error(f"Error processing table data for {company_name}: {e}")
+        continue
 
-                # List the current columns in the table to verify names
-                cursor.execute("""
-                    SELECT column_name
-                    FROM information_schema.columns
-                    WHERE table_name = %s;
-                """, (table_name,))
-                columns = cursor.fetchall()
-                logging.info(f"Columns in '{table_name}' table:")
-                for column in columns:
-                    print(column)
+    # Insert the DataFrame into the PostgreSQL table
+    try:
+        df_table.to_sql(table_name, engine, if_exists='append', index=False)
+        logging.info(f"Successfully inserted data for {company_name} into {table_name}")
+    except Exception as e:
+        logging.error(f"Error inserting data for {company_name} into the database: {e}")
+        continue
 
-                rename_queries = [
-                    f"""ALTER TABLE {table_name} RENAME COLUMN "Sales +" TO sales;""",
-                    f"""ALTER TABLE {table_name} RENAME COLUMN "0" TO month;""",
-                    f"""ALTER TABLE {table_name} RENAME COLUMN "Expenses +" TO expenses;""",
-                    f"""ALTER TABLE {table_name} RENAME COLUMN "Operating Profit" TO operating_profit;""",
-                    f"""ALTER TABLE {table_name} RENAME COLUMN "OPM %" TO operating_profit_margin;""",
-                    f"""ALTER TABLE {table_name} RENAME COLUMN "Other Income +" TO other_income;""",
-                    f"""ALTER TABLE {table_name} RENAME COLUMN "Interest" TO interest;""",
-                    f"""ALTER TABLE {table_name} RENAME COLUMN "Depreciation" TO depreciation;""",
-                    f"""ALTER TABLE {table_name} RENAME COLUMN "Profit before tax" TO profit_before_tax;""",
-                    f"""ALTER TABLE {table_name} RENAME COLUMN "Tax %" TO tax_rate;""",
-                    f"""ALTER TABLE {table_name} RENAME COLUMN "Net Profit +" TO net_profit;""",
-                    f"""ALTER TABLE {table_name} RENAME COLUMN "EPS in Rs" TO earnings_per_share;""",
-                    f"""ALTER TABLE {table_name} RENAME COLUMN "Dividend Payout %" TO dividend_payout_ratio;"""
-                ]
+    # Validate insertion by querying the table
+    try:
+        inspector = inspect(engine)
+        table_columns = inspector.get_columns(table_name)
+        table_column_names = [col['name'] for col in table_columns]
+        logging.info(f"Current columns in {table_name}: {table_column_names}")
 
-                for query in rename_queries:
-                    try:
-                        cursor.execute(query)
-                        connection.commit()
-                        logging.info(f"Successfully executed query: {query}")
-                    except Exception as e:
-                        logging.error(f"Error with query: {query}\n{e}")
+        result = connection.execute(f"SELECT COUNT(*) FROM {table_name} WHERE company = %s", (company_name,))
+        row_count = result.fetchone()[0]
+        logging.info(f"Inserted {row_count} rows for {company_name}.")
+    except Exception as e:
+        logging.error(f"Error validating data insertion for {company_name}: {e}")
+        continue
 
-                # Close cursor and connection
-                cursor.close()
-                connection.close()
-                logging.info("Data transformed and connections closed")
+    # Add delay to prevent server overload
+    time.sleep(5)  # Adjust the sleep time as needed
 
-        else:
-            logging.error("No data found at the given URL or no Profit-Loss section available")
-
-    else:
-        logging.error(f"Failed to retrieve data from {url}. Status code: {response.status_code}")
+# Close database connection
+try:
+    connection.close()
+    logging.info("Database connection closed.")
+except Exception as e:
+    logging.error(f"Error closing the database connection: {e}")
 
 # End of the script
 logging.info("Script execution completed")
