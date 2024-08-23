@@ -112,7 +112,7 @@ for index, row in companies_df.iterrows():
                     cursor.execute("""
                         SELECT column_name
                         FROM information_schema.columns
-                        WHERE table_name = %s AND column_name = %s;
+                        WHERE table_name = %s AND column_name::text = %s;
                     """, (table_name, col))
                     if not cursor.fetchone():
                         cursor.execute("""
