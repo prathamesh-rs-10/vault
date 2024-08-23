@@ -118,9 +118,14 @@ for index, row in companies_df.iterrows():
                         WHERE table_name = %s AND column_name::text = %s;
                     """, (table_name, str(col)))
                     if not cursor.fetchone():
-                        cursor.execute("""
-                            ALTER TABLE {} ADD COLUMN "{}" numeric;
-                        """.format(table_name, col))
+                        if col == "0":  # Convert column "0" to text
+                            cursor.execute("""
+                                ALTER TABLE {} ADD COLUMN "{}" text;
+                            """.format(table_name, col))
+                        else:
+                            cursor.execute("""
+                                ALTER TABLE {} ADD COLUMN "{}" numeric;
+                            """.format(table_name, col))
                     connection.commit()
 
                                 # Insert data into the table
