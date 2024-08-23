@@ -23,6 +23,10 @@ engine = create_engine(f'postgresql+psycopg2://{db_user}:{db_password}@{db_host}
 # Create a single table to store all data
 table_name = 'all_company_data'
 
+# Connect to the database
+connection = engine.raw_connection()
+cursor = connection.cursor()
+
 # Iterate over the companies
 for index, row in companies_df.iterrows():
     company_symbol = row['Symbol']
@@ -93,7 +97,6 @@ for index, row in companies_df.iterrows():
                 df_table['company'] = company_name
 
                 # Check if table exists, create if not
-                cursor = engine.raw_connection().cursor()
                 cursor.execute("""
                     SELECT to_regclass(%s);
                 """, (table_name,))
@@ -118,9 +121,9 @@ for index, row in companies_df.iterrows():
                         cursor.execute("""
                             ALTER TABLE {} ADD COLUMN "{}" numeric;
                         """.format(table_name, col))
-                        connection.commit()
+                    connection.commit()
 
-                # Insert data into the table
+                                # Insert data into the table
                 df_table.to_sql(table_name, engine, if_exists='append', index=False)
                 connection.commit()
 
