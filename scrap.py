@@ -116,7 +116,7 @@ for index, row in companies_df.iterrows():
                         SELECT column_name
                         FROM information_schema.columns
                         WHERE table_name = %s AND column_name::text = %s;
-                    """, (table_name, col))
+                    """, (table_name, str(col)))
                     if not cursor.fetchone():
                         cursor.execute("""
                             ALTER TABLE {} ADD COLUMN "{}" numeric;
