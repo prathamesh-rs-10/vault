@@ -93,6 +93,21 @@ for index, row in companies_df.iterrows():
         df_table.reset_index(inplace=True)
         df_table.rename(columns={'index': 'Period'}, inplace=True)
 
+        # Data type conversions
+        df_table['0'] = df_table['0'].astype(str)  # Convert '0' column to string
+
+        # Convert specific columns to float
+        float_columns = ['OPM %', 'Tax %', 'EPS in Rs', 'Dividend Payout %']
+        for col in float_columns:
+            if col in df_table.columns:
+                df_table[col] = df_table[col].str.replace(',', '').astype(float)
+
+        # Convert all other columns to integers except 'id', 'company', and float columns
+        exclude_columns = ['id', 'company', 'Period'] + float_columns
+        int_columns = [col for col in df_table.columns if col not in exclude_columns]
+        for col in int_columns:
+            df_table[col] = df_table[col].str.replace(',', '').astype(int, errors='ignore')
+
         # Update all_columns with the current company's columns
         current_columns = set(df_table.columns)
         all_columns.update(current_columns)
@@ -140,4 +155,4 @@ except Exception as e:
     logging.error(f"Error closing the database connection: {e}")
 
 # End of the script
-logging.info("Script execution completed")
+logging.info("Script execution completed.")
