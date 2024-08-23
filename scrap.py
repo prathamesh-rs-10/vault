@@ -113,30 +113,6 @@ for index, row in companies_df.iterrows():
                 for column in columns:
                     print(column)
 
-                rename_queries = [
-                    f"""ALTER TABLE {table_name} RENAME COLUMN "Sales +" TO sales;""",
-                    f"""ALTER TABLE {table_name} RENAME COLUMN "0" TO month;""",
-                    f"""ALTER TABLE {table_name} RENAME COLUMN "Expenses +" TO expenses;""",
-                    f"""ALTER TABLE {table_name} RENAME COLUMN "Operating Profit" TO operating_profit;""",
-                    f"""ALTER TABLE {table_name} RENAME COLUMN "OPM %" TO operating_profit_margin;""",
-                    f"""ALTER TABLE {table_name} RENAME COLUMN "Other Income +" TO other_income;""",
-                    f"""ALTER TABLE {table_name} RENAME COLUMN "Interest" TO interest;""",
-                    f"""ALTER TABLE {table_name} RENAME COLUMN "Depreciation" TO depreciation;""",
-                    f"""ALTER TABLE {table_name} RENAME COLUMN "Profit before tax" TO profit_before_tax;""",
-                    f"""ALTER TABLE {table_name} RENAME COLUMN "Tax %" TO tax_rate;""",
-                    f"""ALTER TABLE {table_name} RENAME COLUMN "Net Profit +" TO net_profit;""",
-                    f"""ALTER TABLE {table_name} RENAME COLUMN "EPS in Rs" TO earnings_per_share;""",
-                    f"""ALTER TABLE {table_name} RENAME COLUMN "Dividend Payout %" TO dividend_payout_ratio;"""
-                ]
-
-                for query in rename_queries:
-                    try:
-                        cursor.execute(query)
-                        connection.commit()
-                        logging.info(f"Successfully executed query: {query}")
-                    except Exception as e:
-                        logging.error(f"Error with query: {query}\n{e}")
-
                 # Close cursor and connection
                 cursor.close()
                 connection.close()
