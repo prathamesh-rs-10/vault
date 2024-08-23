@@ -92,37 +92,50 @@ for index, row in companies_df.iterrows():
                 # Add a new column for the company name
                 df_table['company'] = company_name
 
-                # Append data to the single table
-                df_table.to_sql(table_name, engine, if_exists='append', index=False)
-                logging.info(f"Data loaded for {company_name}")
-
-                time.sleep(2)
-
-                # Use the existing PostgreSQL connection
-                connection = engine.raw_connection()
-                cursor = connection.cursor()
-
-                # List the current columns in the table to verify names
+                # Check if table exists, create if not
+                cursor = engine.raw_connection().cursor()
                 cursor.execute("""
-                    SELECT column_name
-                    FROM information_schema.columns
-                    WHERE table_name = %s;
+                    SELECT to_regclass(%s);
                 """, (table_name,))
-                columns = cursor.fetchall()
-                logging.info(f"Columns in '{table_name}' table:")
-                for column in columns:
-                    print(column)
+                if not cursor.fetchone()[0]:
+                    cursor.execute("""
+                        CREATE TABLE {} (
+                            id SERIAL PRIMARY KEY,
+                            "Period" text,
+                            "company" text
+                        );
+                    """.format(table_name))
+                    connection.commit()
+
+                # Check if columns exist, create if not
+                for col in df_table.columns:
+                    cursor.execute("""
+                        SELECT column_name
+                        FROM information_schema.columns
+                        WHERE table_name = %s AND column_name = %s;
+                    """, (table_name, col))
+                    if not cursor.fetchone():
+                        cursor.execute("""
+                            ALTER TABLE {} ADD COLUMN "{}" numeric;
+                        """.format(table_name, col))
+                        connection.commit()
+
+                # Insert data into the table
+                df_table.to_sql(table_name, engine, if_exists='append', index=False)
+                connection.commit()
 
                 # Close cursor and connection
                 cursor.close()
                 connection.close()
-                logging.info("Data transformed and connections closed")
+                logging.info("Data loaded for {}".format(company_name))
+
+                time.sleep(2)
 
         else:
             logging.error("No data found at the given URL or no Profit-Loss section available")
 
     else:
-        logging.error(f"Failed to retrieve data from {url}. Status code: {response.status_code}")
+        logging.error("Failed to retrieve data from {}. Status code: {}".format(url, response.status_code))
 
 # End of the script
 logging.info("Script execution completed")
