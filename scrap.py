@@ -1,10 +1,8 @@
-import argparse
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
 from sqlalchemy import create_engine
 import logging
-import time
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -23,38 +21,20 @@ engine = create_engine(f'postgresql+psycopg2://{db_user}:{db_password}@{db_host}
 # Create a single table to store all data
 table_name = 'all_company_data'
 
-# Connect to the database
-connection = engine.raw_connection()
-cursor = connection.cursor()
-
 # Iterate over the companies
 for index, row in companies_df.iterrows():
     company_symbol = row['Symbol']
     company_name = row['Company Name']
 
+    # URL for the profit-loss data
     url = f'https://screener.in/company/{company_symbol}/consolidated/'
-    delay = 1  # seconds
-    max_retries = 5
 
-    for attempt in range(max_retries):
-        try:
-            response = requests.get(url)
-            break
-        except requests.exceptions.ConnectionError:
-            logging.error(f"Attempt {attempt+1}/{max_retries} failed to connect to {url}. Retrying in {delay} seconds...")
-            time.sleep(delay)
-            delay *= 2  # Exponential backoff
-        except requests.exceptions.HTTPError as e:
-            logging.error(f"HTTP Error {e.response.status_code} for {url}. Skipping...")
-            break
-        except Exception as e:
-            logging.error(f"Error for {url}: {e}. Skipping...")
-            break
-    else:
-        logging.error(f"Failed to connect to {url} after {max_retries} attempts. Skipping...")
-        continue
+    # Send a GET request to the URL
+    response = requests.get(url)
 
+    # Check if the request was successful
     if response.status_code == 200:
+        # Parse the HTML content using BeautifulSoup
         soup = BeautifulSoup(response.content, 'html.parser')
 
         # Find the profit-loss section and table
@@ -96,54 +76,59 @@ for index, row in companies_df.iterrows():
                 # Add a new column for the company name
                 df_table['company'] = company_name
 
-                # Check if table exists, create if not
-                cursor.execute("""
-                    SELECT to_regclass(%s);
-                """, (table_name,))
-                if not cursor.fetchone()[0]:
-                    cursor.execute("""
-                        CREATE TABLE {} (
-                            id SERIAL PRIMARY KEY,
-                            "Period" text,
-                            "company" text
-                        );
-                    """.format(table_name))
-                    connection.commit()
-
-                # Check if columns exist, create if not
-                for col in df_table.columns:
-                    cursor.execute("""
-                        SELECT column_name
-                        FROM information_schema.columns
-                        WHERE table_name = %s AND column_name::text = %s;
-                    """, (table_name, str(col)))
-                    if not cursor.fetchone():
-                        if col == "0":  # Convert column "0" to text
-                            cursor.execute("""
-                                ALTER TABLE {} ADD COLUMN "{}" text;
-                            """.format(table_name, col))
-                        else:
-                            cursor.execute("""
-                                ALTER TABLE {} ADD COLUMN "{}" numeric;
-                            """.format(table_name, col))
-                    connection.commit()
-
-                                # Insert data into the table
+                # Append data to the single table
                 df_table.to_sql(table_name, engine, if_exists='append', index=False)
-                connection.commit()
+                logging.info(f"Data loaded for {company_name}")
+
+                # Use the existing PostgreSQL connection
+                connection = engine.raw_connection()
+                cursor = connection.cursor()
+
+                # List the current columns in the table to verify names
+                cursor.execute("""
+                    SELECT column_name
+                    FROM information_schema.columns
+                    WHERE table_name = %s;
+                """, (table_name,))
+                columns = cursor.fetchall()
+                logging.info(f"Columns in '{table_name}' table:")
+                for column in columns:
+                    print(column)
+
+                rename_queries = [
+                    f"""ALTER TABLE {table_name} RENAME COLUMN "Sales +" TO sales;""",
+                    f"""ALTER TABLE {table_name} RENAME COLUMN "0" TO month;""",
+                    f"""ALTER TABLE {table_name} RENAME COLUMN "Expenses +" TO expenses;""",
+                    f"""ALTER TABLE {table_name} RENAME COLUMN "Operating Profit" TO operating_profit;""",
+                    f"""ALTER TABLE {table_name} RENAME COLUMN "OPM %" TO operating_profit_margin;""",
+                    f"""ALTER TABLE {table_name} RENAME COLUMN "Other Income +" TO other_income;""",
+                    f"""ALTER TABLE {table_name} RENAME COLUMN "Interest" TO interest;""",
+                    f"""ALTER TABLE {table_name} RENAME COLUMN "Depreciation" TO depreciation;""",
+                    f"""ALTER TABLE {table_name} RENAME COLUMN "Profit before tax" TO profit_before_tax;""",
+                    f"""ALTER TABLE {table_name} RENAME COLUMN "Tax %" TO tax_rate;""",
+                    f"""ALTER TABLE {table_name} RENAME COLUMN "Net Profit +" TO net_profit;""",
+                    f"""ALTER TABLE {table_name} RENAME COLUMN "EPS in Rs" TO earnings_per_share;""",
+                    f"""ALTER TABLE {table_name} RENAME COLUMN "Dividend Payout %" TO dividend_payout_ratio;"""
+                ]
+
+                for query in rename_queries:
+                    try:
+                        cursor.execute(query)
+                        connection.commit()
+                        logging.info(f"Successfully executed query: {query}")
+                    except Exception as e:
+                        logging.error(f"Error with query: {query}\n{e}")
 
                 # Close cursor and connection
                 cursor.close()
                 connection.close()
-                logging.info("Data loaded for {}".format(company_name))
-
-                time.sleep(2)
+                logging.info("Data transformed and connections closed")
 
         else:
             logging.error("No data found at the given URL or no Profit-Loss section available")
 
     else:
-        logging.error("Failed to retrieve data from {}. Status code: {}".format(url, response.status_code))
+        logging.error(f"Failed to retrieve data from {url}. Status code: {response.status_code}")
 
 # End of the script
 logging.info("Script execution completed")
